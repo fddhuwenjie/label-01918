@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=contract-mgmt-secret-key-2026
+      - DB_PATH=/app/data/database.sqlite
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    ports:
+      - "8085:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
