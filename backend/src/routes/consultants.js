@@ -32,10 +32,18 @@ router.get('/:id', authenticate, function(req, res) {
 router.post('/', authenticate, authorize('Admin', 'Manager'), function(req, res) {
   try {
     var id = uuidv4(), b = req.body;
-    runSql('INSERT INTO consultants (id, name, email, phone, department_id, hire_date, status) VALUES (?,?,?,?,?,?,?)', [id, b.name, b.email, b.phone, b.department_id, b.hire_date, b.status || 'active']);
+    // 检查邮箱是否已存在
+    var existing = queryOne('SELECT id FROM consultants WHERE email = ?', [b.email]);
+    if (existing) {
+      return res.status(400).json({ error: '该邮箱已被使用' });
+    }
+    runSql('INSERT INTO consultants (id, name, email, phone, department_id, hire_date, status) VALUES (?,?,?,?,?,?,?)', [id, b.name, b.email, b.phone || null, b.department_id || null, b.hire_date || null, b.status || 'active']);
     logActivity(req.user.id, 'create_consultant', 'consultant', id, 'Created consultant ' + b.name, req.ip);
     res.status(201).json({ id: id, name: b.name });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error('Create consultant error:', err);
+    res.status(500).json({ error: err.message || 'Unknown error' }); 
+  }
 });
 
 router.put('/:id', authenticate, authorize('Admin', 'Manager'), function(req, res) {

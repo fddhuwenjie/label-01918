@@ -47,10 +47,13 @@ router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), func
     var id = uuidv4();
     var b = req.body;
     runSql('INSERT INTO customers (id, name, email, phone, company, address, region, industry, status, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      [id, b.name, b.email, b.phone, b.company, b.address, b.region, b.industry, b.status || 'active', b.notes, req.user.id]);
+      [id, b.name, b.email || null, b.phone || null, b.company || null, b.address || null, b.region || null, b.industry || null, b.status || 'active', b.notes || null, req.user.id]);
     logActivity(req.user.id, 'create_customer', 'customer', id, 'Created customer ' + b.name, req.ip);
     res.status(201).json({ id: id, name: b.name });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error('Create customer error:', err);
+    res.status(500).json({ error: err.message || 'Unknown error' }); 
+  }
 });
 
 router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), function(req, res) {

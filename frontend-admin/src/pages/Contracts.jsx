@@ -10,6 +10,23 @@ const statusColors = { draft: 'default', pending: 'processing', active: 'success
 const statusMap = { draft: '草稿', pending: '待审批', active: '生效中', completed: '已完成', terminated: '已终止' };
 const statusOptions = Object.entries(statusMap).map(([value, label]) => ({ label, value }));
 
+// 根据当前状态获取允许的状态选项
+const getAllowedStatusOptions = (currentStatus) => {
+  if (!currentStatus) {
+    // 新建合同只能是草稿
+    return [{ label: '草稿', value: 'draft' }];
+  }
+  const allowedTransitions = {
+    'draft': ['draft', 'terminated'],
+    'active': ['active', 'completed', 'terminated'],
+    'completed': ['completed', 'terminated'],
+    'terminated': ['terminated'],
+    'pending': ['pending'] // pending状态不允许编辑，但以防万一
+  };
+  const allowed = allowedTransitions[currentStatus] || [currentStatus];
+  return statusOptions.filter(opt => allowed.includes(opt.value));
+};
+
 export default function Contracts() {
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
@@ -137,7 +154,7 @@ export default function Contracts() {
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="value" label="金额"><InputNumber style={{ width: '100%' }} min={0} precision={2} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="status" label="状态"><Select options={getAllowedStatusOptions(editRecord?.status)} /></Form.Item></Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="start_date" label="开始日期"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>

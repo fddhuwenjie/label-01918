@@ -81,8 +81,13 @@ router.get('/:id', authenticate, function(req, res) {
 router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), function(req, res) {
   try {
     var id = uuidv4(), b = req.body;
+    // 检查合同编号是否已存在
+    var existing = queryOne('SELECT id FROM contracts WHERE contract_number = ?', [b.contract_number]);
+    if (existing) {
+      return res.status(400).json({ error: '该合同编号已存在' });
+    }
     runSql('INSERT INTO contracts (id, contract_number, name, value, start_date, end_date, status, customer_id, consultant_id, description, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      [id, b.contract_number, b.name, b.value || 0, b.start_date, b.end_date, b.status || 'draft', b.customer_id, b.consultant_id, b.description, req.user.id]);
+      [id, b.contract_number, b.name, b.value || 0, b.start_date || null, b.end_date || null, 'draft', b.customer_id || null, b.consultant_id || null, b.description || null, req.user.id]);
 
     if (b.media && b.media.length) {
       b.media.forEach(function(m) { runSql('INSERT INTO contract_media (id, contract_id, url, type, title) VALUES (?,?,?,?,?)', [uuidv4(), id, m.url, m.type || 'image', m.title]); });
@@ -94,7 +99,10 @@ router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), func
 
     logActivity(req.user.id, 'create_contract', 'contract', id, 'Created contract ' + b.contract_number, req.ip);
     res.status(201).json({ id: id, contract_number: b.contract_number, name: b.name });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error('Create contract error:', err);
+    res.status(500).json({ error: err.message || 'Unknown error' }); 
+  }
 });
 
 router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), function(req, res) {
@@ -105,8 +113,34 @@ router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), fu
 
     var b = req.body;
     var newVersion = old.version + 1;
+    
+    // 状态变更限制：只有管理员可以直接修改状态，且不能跳过审批流程
+    var newStatus = old.status; // 默认保持原状态
+    if (b.status && b.status !== old.status) {
+      // 允许的状态变更规则
+      var allowedTransitions = {
+        'draft': ['terminated'], // 草稿只能终止（或通过提交审批变为pending）
+        'active': ['completed', 'terminated'], // 生效中可以完成或终止
+        'completed': ['terminated'], // 已完成只能终止
+        'terminated': [] // 已终止不能变更
+      };
+      
+      var allowed = allowedTransitions[old.status] || [];
+      if (allowed.includes(b.status)) {
+        // 只有Admin和Manager可以直接变更状态
+        if (req.user.role_name === 'Admin' || req.user.role_name === 'Manager') {
+          newStatus = b.status;
+        } else {
+          return res.status(403).json({ error: '您没有权限直接修改合同状态' });
+        }
+      } else if (b.status === 'pending' || b.status === 'active') {
+        // 不允许直接改为pending或active，必须通过审批流程
+        return res.status(400).json({ error: '不能直接修改为该状态，请通过审批流程操作' });
+      }
+    }
+    
     runSql('UPDATE contracts SET contract_number=?,name=?,value=?,start_date=?,end_date=?,status=?,customer_id=?,consultant_id=?,description=?,version=?,updated_at=datetime("now") WHERE id=?',
-      [b.contract_number, b.name, b.value, b.start_date, b.end_date, b.status, b.customer_id, b.consultant_id, b.description, newVersion, req.params.id]);
+      [b.contract_number, b.name, b.value, b.start_date, b.end_date, newStatus, b.customer_id, b.consultant_id, b.description, newVersion, req.params.id]);
 
     if (b.media !== undefined) {
       runSql('DELETE FROM contract_media WHERE contract_id = ?', [req.params.id]);
@@ -159,8 +193,6 @@ router.post('/:id/submit-approval', authenticate, authorize('Admin', 'Manager', 
     // 更新合同状态为 pending
     runSql('UPDATE contracts SET status = "pending", updated_at = datetime("now") WHERE id = ?', [req.params.id]);
 
-    // 根据合同金额决定审批规则：>=50000 需要 Admin 审批，否则 Manager 即可
-    var approverRole = contract.value >= 50000 ? 'Admin' : 'Manager';
     // 如果提交人本身就是 Admin，直接自动通过
     if (req.user.role_name === 'Admin') {
       var autoId = uuidv4();
@@ -169,6 +201,19 @@ router.post('/:id/submit-approval', authenticate, authorize('Admin', 'Manager', 
       runSql('UPDATE contracts SET status = "active", updated_at = datetime("now") WHERE id = ?', [req.params.id]);
       logActivity(req.user.id, 'contract_approval', 'contract', req.params.id, '管理员自动审批通过', req.ip);
       return res.json({ message: '管理员提交，已自动审批通过' });
+    }
+
+    // 审批规则：
+    // 1. 合同金额 >= 5万：必须由 Admin 审批
+    // 2. 合同金额 < 5万：由 Manager 审批，但如果提交人是 Manager，则需要 Admin 审批（避免自己审批自己）
+    var approverRole;
+    if (contract.value >= 50000) {
+      approverRole = 'Admin';
+    } else if (req.user.role_name === 'Manager') {
+      // 经理提交的合同，无论金额大小，都需要管理员审批
+      approverRole = 'Admin';
+    } else {
+      approverRole = 'Manager';
     }
 
     // 找到审批人（按角色）

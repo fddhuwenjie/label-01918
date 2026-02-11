@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Input, Select, Space, Tag, Modal, Form, message, Typography, Row, Col, Card, Popconfirm } from 'antd';
-import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, EditOutlined, StopOutlined, KeyOutlined } from '@ant-design/icons';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,6 +16,11 @@ export default function Users() {
   const [departments, setDepartments] = useState([]);
   const [filters, setFilters] = useState({ search: '', role: '', status: '', page: 1, pageSize: 20 });
   const [form] = Form.useForm();
+  const [passwordForm] = Form.useForm();
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role_name === 'Admin';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -42,16 +47,32 @@ export default function Users() {
     } catch (err) { message.error(err.response?.data?.error || '保存失败'); }
   };
 
-  const handleResetPassword = async (id) => {
-    const newPassword = prompt('请输入新密码：', 'default123');
-    if (!newPassword) return;
-    await api.put(`/users/${id}/reset-password`, { newPassword });
-    message.success('密码已重置');
+  const handleResetPassword = async (values) => {
+    try {
+      await api.put(`/users/${passwordUserId}/reset-password`, { newPassword: values.newPassword });
+      message.success('密码已重置');
+      setPasswordModalOpen(false);
+      passwordForm.resetFields();
+      setPasswordUserId(null);
+    } catch (err) {
+      message.error(err.response?.data?.error || '重置密码失败');
+    }
+  };
+
+  const openPasswordModal = (id) => {
+    setPasswordUserId(id);
+    passwordForm.resetFields();
+    setPasswordModalOpen(true);
   };
 
   const handleDeactivate = async (id) => {
-    await api.delete(`/users/${id}`);
-    message.success('用户已停用'); fetchData();
+    try {
+      await api.delete(`/users/${id}`);
+      message.success('用户已停用'); 
+      fetchData();
+    } catch (err) {
+      message.error(err.response?.data?.error || '停用失败');
+    }
   };
 
   const openEdit = (record) => { setEditRecord(record); form.setFieldsValue(record); setModalOpen(true); };
@@ -66,10 +87,12 @@ export default function Users() {
     { title: '操作', width: 150, render: (_, r) => (
       <Space>
         <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-        <Button type="link" size="small" icon={<KeyOutlined />} onClick={() => handleResetPassword(r.id)} />
-        <Popconfirm title="确定停用该用户？" onConfirm={() => handleDeactivate(r.id)} okText="确定" cancelText="取消">
-          <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
+        {isAdmin && <Button type="link" size="small" icon={<KeyOutlined />} onClick={() => openPasswordModal(r.id)} />}
+        {isAdmin && r.id !== user?.id && r.status === 'active' && (
+          <Popconfirm title="确定停用该用户？" onConfirm={() => handleDeactivate(r.id)} okText="确定" cancelText="取消">
+            <Button type="link" size="small" danger icon={<StopOutlined />} />
+          </Popconfirm>
+        )}
       </Space>
     )},
   ];
@@ -89,7 +112,7 @@ export default function Users() {
             </Space>
           </Col>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditRecord(null); form.resetFields(); setModalOpen(true); }}>新建用户</Button>
+            {isAdmin && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditRecord(null); form.resetFields(); setModalOpen(true); }}>新建用户</Button>}
           </Col>
         </Row>
       </Card>
@@ -113,6 +136,14 @@ export default function Users() {
             <Col span={12}><Form.Item name="department_id" label="部门"><Select options={departments.map(d => ({ label: d.name, value: d.id }))} allowClear /></Form.Item></Col>
             <Col span={12}><Form.Item name="status" label="状态"><Select options={[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]} /></Form.Item></Col>
           </Row>
+        </Form>
+      </Modal>
+
+      <Modal title="重置密码" open={passwordModalOpen} onCancel={() => { setPasswordModalOpen(false); setPasswordUserId(null); }} onOk={() => passwordForm.submit()} okText="确定" cancelText="取消" destroyOnClose>
+        <Form form={passwordForm} layout="vertical" onFinish={handleResetPassword}>
+          <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 6, message: '密码至少6位' }]}>
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

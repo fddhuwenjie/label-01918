@@ -53,11 +53,19 @@ router.get('/:id', authenticate, function(req, res) {
 router.post('/', authenticate, authorize('Admin'), function(req, res) {
   try {
     var id = uuidv4();
+    // 检查邮箱是否已存在
+    var existing = queryOne('SELECT id FROM users WHERE email = ?', [req.body.email]);
+    if (existing) {
+      return res.status(400).json({ error: '该邮箱已被使用' });
+    }
     var hashed = bcrypt.hashSync(req.body.password || 'default123', 10);
-    runSql('INSERT INTO users (id, email, password, name, phone, role_id, department_id) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, req.body.email, hashed, req.body.name, req.body.phone, req.body.role_id, req.body.department_id]);
+    runSql('INSERT INTO users (id, email, password, name, phone, role_id, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, req.body.email, hashed, req.body.name, req.body.phone || null, req.body.role_id, req.body.department_id || null, req.body.status || 'active']);
     logActivity(req.user.id, 'create_user', 'user', id, 'Created user ' + req.body.email, req.ip);
     res.status(201).json({ id: id, email: req.body.email, name: req.body.name });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error('Create user error:', err);
+    res.status(500).json({ error: err.message || 'Unknown error' }); 
+  }
 });
 
 router.put('/:id', authenticate, authorize('Admin', 'Manager'), function(req, res) {
