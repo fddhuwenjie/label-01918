@@ -60,9 +60,18 @@ export default function Contracts() {
   }, []);
 
   const handleSave = async (values) => {
+    // 日期验证：如果两个日期都填了，开始日期不能晚于结束日期
+    if (values.start_date && values.end_date && values.start_date.isAfter(values.end_date)) {
+      message.error('开始日期不能晚于结束日期');
+      return;
+    }
     try {
-      const payload = { ...values, start_date: values.start_date?.format('YYYY-MM-DD'), end_date: values.end_date?.format('YYYY-MM-DD'),
-        media: values.media_urls ? values.media_urls.split('\n').filter(Boolean).map(url => ({ url: url.trim(), type: url.match(/\.(mp4|webm)/i) ? 'video' : 'image', title: '' })) : [] };
+      const payload = { 
+        ...values, 
+        start_date: values.start_date?.format('YYYY-MM-DD') || null, 
+        end_date: values.end_date?.format('YYYY-MM-DD') || null,
+        media: values.media_urls ? values.media_urls.split('\n').filter(Boolean).map(url => ({ url: url.trim(), type: url.match(/\.(mp4|webm)/i) ? 'video' : 'image', title: '' })) : [] 
+      };
       delete payload.media_urls;
       if (editRecord) { await api.put(`/contracts/${editRecord.id}`, payload); message.success('合同已更新'); }
       else { await api.post('/contracts', payload); message.success('合同已创建'); }
@@ -85,9 +94,27 @@ export default function Contracts() {
     message.success('状态已更新'); setSelectedKeys([]); fetchData();
   };
 
-  const openEdit = (record) => {
+  const openEdit = async (record) => {
     setEditRecord(record);
-    form.setFieldsValue({ ...record, start_date: record.start_date ? dayjs(record.start_date) : null, end_date: record.end_date ? dayjs(record.end_date) : null, media_urls: '' });
+    // 获取合同详情，包括媒体文件
+    try {
+      const res = await api.get(`/contracts/${record.id}`);
+      const detail = res.data;
+      const mediaUrls = detail.media?.map(m => m.url).join('\n') || '';
+      form.setFieldsValue({ 
+        ...detail, 
+        start_date: detail.start_date ? dayjs(detail.start_date) : null, 
+        end_date: detail.end_date ? dayjs(detail.end_date) : null, 
+        media_urls: mediaUrls 
+      });
+    } catch (err) {
+      form.setFieldsValue({ 
+        ...record, 
+        start_date: record.start_date ? dayjs(record.start_date) : null, 
+        end_date: record.end_date ? dayjs(record.end_date) : null, 
+        media_urls: '' 
+      });
+    }
     setModalOpen(true);
   };
 

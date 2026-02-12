@@ -39,10 +39,10 @@ export default function Logs() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const columns = [
-    { title: '时间', dataIndex: 'created_at' },
+    { title: '时间', dataIndex: 'created_at', render: t => t ? t.split(' ')[0] : '-' },
     { title: '用户', dataIndex: 'user_name' },
     { title: '操作', dataIndex: 'action', render: a => <Tag color={actionColors[a] || 'default'}>{actionMap[a] || a}</Tag> },
-    { title: '对象类型', dataIndex: 'entity_type', render: t => entityMap[t] || t },
+    { title: '对象类型', dataIndex: 'entity_type', render: t => entityMap[t] || t || '-' },
     { title: '详情', dataIndex: 'details' },
   ];
 
@@ -63,7 +63,7 @@ export default function Logs() {
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         pagination={{ current: filters.page, pageSize: filters.pageSize, total, showSizeChanger: true, showTotal: t => `共 ${t} 条`,
           onChange: (page, pageSize) => setFilters(f => ({ ...f, page, pageSize })) }}
-        size="middle" />
+        size="large" />
     </div>
   );
 }

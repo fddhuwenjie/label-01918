@@ -17,7 +17,7 @@ router.put('/', authenticate, authorize('Admin'), function(req, res) {
     Object.keys(settings).forEach(function(key) {
       runSql('INSERT OR REPLACE INTO system_settings (key, value, updated_at, updated_by) VALUES (?, ?, datetime("now"), ?)', [key, String(settings[key]), req.user.id]);
     });
-    res.json({ message: 'Settings updated' });
+    res.json({ message: '设置已更新' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

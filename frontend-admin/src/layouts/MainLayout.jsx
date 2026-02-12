@@ -45,15 +45,23 @@ export default function MainLayout() {
     ]
   };
 
+  const siderWidth = collapsed ? 80 : 200;
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+      <Sider 
+        trigger={null} 
+        collapsible 
+        collapsed={collapsed} 
+        theme="dark"
+        style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 100, overflow: 'auto' }}
+      >
         <div className="logo">{collapsed ? '合同' : '合同管理系统'}</div>
         <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]}
           items={menuItems} onClick={({ key }) => navigate(key)} />
       </Sider>
-      <Layout>
-        <Header style={{ padding: '0 16px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Layout style={{ marginLeft: siderWidth, transition: 'margin-left 0.2s' }}>
+        <Header style={{ padding: '0 16px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 99 }}>
           {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
             onClick: () => setCollapsed(!collapsed), style: { fontSize: 18, cursor: 'pointer' }
           })}

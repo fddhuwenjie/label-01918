@@ -71,7 +71,7 @@ router.get('/approvals/all', authenticate, authorize('Admin', 'Manager'), functi
 
 router.get('/:id', authenticate, function(req, res) {
   var contract = queryOne('SELECT ct.*, cu.name as customer_name, cu.email as customer_email, co.name as consultant_name, co.email as consultant_email FROM contracts ct LEFT JOIN customers cu ON ct.customer_id = cu.id LEFT JOIN consultants co ON ct.consultant_id = co.id WHERE ct.id = ?', [req.params.id]);
-  if (!contract) return res.status(404).json({ error: 'Contract not found' });
+  if (!contract) return res.status(404).json({ error: '合同不存在' });
   contract.media = queryAll('SELECT * FROM contract_media WHERE contract_id = ? ORDER BY created_at', [req.params.id]);
   contract.versions = queryAll('SELECT cv.*, u.name as changed_by_name FROM contract_versions cv LEFT JOIN users u ON cv.changed_by = u.id WHERE cv.contract_id = ? ORDER BY cv.version DESC', [req.params.id]);
   contract.approvals = queryAll('SELECT ca.*, u.name as approver_name FROM contract_approvals ca LEFT JOIN users u ON ca.approver_id = u.id WHERE ca.contract_id = ? ORDER BY ca.created_at DESC', [req.params.id]);
@@ -95,9 +95,9 @@ router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), func
 
     var contractData = queryOne('SELECT * FROM contracts WHERE id = ?', [id]);
     runSql('INSERT INTO contract_versions (id, contract_id, version, data, changed_by, change_summary) VALUES (?,?,?,?,?,?)',
-      [uuidv4(), id, 1, JSON.stringify(contractData), req.user.id, 'Initial creation']);
+      [uuidv4(), id, 1, JSON.stringify(contractData), req.user.id, '初始创建']);
 
-    logActivity(req.user.id, 'create_contract', 'contract', id, 'Created contract ' + b.contract_number, req.ip);
+    logActivity(req.user.id, 'create_contract', 'contract', id, '创建合同 ' + b.contract_number, req.ip);
     res.status(201).json({ id: id, contract_number: b.contract_number, name: b.name });
   } catch (err) { 
     console.error('Create contract error:', err);
@@ -108,7 +108,7 @@ router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), func
 router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), function(req, res) {
   try {
     var old = queryOne('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
-    if (!old) return res.status(404).json({ error: 'Contract not found' });
+    if (!old) return res.status(404).json({ error: '合同不存在' });
     if (old.status === 'pending') return res.status(400).json({ error: '待审批合同不可编辑' });
 
     var b = req.body;
@@ -151,18 +151,18 @@ router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), fu
 
     var updated = queryOne('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
     runSql('INSERT INTO contract_versions (id, contract_id, version, data, changed_by, change_summary) VALUES (?,?,?,?,?,?)',
-      [uuidv4(), req.params.id, newVersion, JSON.stringify(updated), req.user.id, 'Updated by ' + req.user.name]);
+      [uuidv4(), req.params.id, newVersion, JSON.stringify(updated), req.user.id, '由 ' + req.user.name + ' 更新']);
 
-    logActivity(req.user.id, 'update_contract', 'contract', req.params.id, 'Updated contract', req.ip);
-    res.json({ message: 'Contract updated', version: newVersion });
+    logActivity(req.user.id, 'update_contract', 'contract', req.params.id, '更新合同', req.ip);
+    res.json({ message: '合同已更新', version: newVersion });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/:id', authenticate, authorize('Admin', 'Manager'), function(req, res) {
   try {
     runSql('UPDATE contracts SET status = "terminated", updated_at = datetime("now") WHERE id = ?', [req.params.id]);
-    logActivity(req.user.id, 'terminate_contract', 'contract', req.params.id, 'Contract terminated', req.ip);
-    res.json({ message: 'Contract terminated' });
+    logActivity(req.user.id, 'terminate_contract', 'contract', req.params.id, '终止合同', req.ip);
+    res.json({ message: '合同已终止' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -170,8 +170,8 @@ router.post('/bulk-status', authenticate, authorize('Admin', 'Manager'), functio
   try {
     var ids = req.body.ids, status = req.body.status;
     ids.forEach(function(id) { runSql('UPDATE contracts SET status = ?, updated_at = datetime("now") WHERE id = ?', [status, id]); });
-    logActivity(req.user.id, 'bulk_update_contract', 'contract', null, 'Bulk status update to ' + status, req.ip);
-    res.json({ message: ids.length + ' contracts updated' });
+    logActivity(req.user.id, 'bulk_update_contract', 'contract', null, '批量更新状态为 ' + status, req.ip);
+    res.json({ message: '已更新 ' + ids.length + ' 个合同' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -179,7 +179,7 @@ router.post('/bulk-delete', authenticate, authorize('Admin'), function(req, res)
   try {
     var ids = req.body.ids;
     ids.forEach(function(id) { runSql('UPDATE contracts SET status = "terminated", updated_at = datetime("now") WHERE id = ?', [id]); });
-    res.json({ message: ids.length + ' contracts terminated' });
+    res.json({ message: '已终止 ' + ids.length + ' 个合同' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -295,7 +295,7 @@ router.post('/:id/approvals', authenticate, authorize('Admin', 'Manager'), funct
 router.post('/:id/revert/:version', authenticate, authorize('Admin', 'Manager'), function(req, res) {
   try {
     var ver = queryOne('SELECT * FROM contract_versions WHERE contract_id = ? AND version = ?', [req.params.id, parseInt(req.params.version)]);
-    if (!ver) return res.status(404).json({ error: 'Version not found' });
+    if (!ver) return res.status(404).json({ error: '版本不存在' });
     var data = JSON.parse(ver.data);
     var current = queryOne('SELECT version FROM contracts WHERE id = ?', [req.params.id]);
     var newVersion = current.version + 1;
@@ -303,8 +303,8 @@ router.post('/:id/revert/:version', authenticate, authorize('Admin', 'Manager'),
       [data.name, data.value, data.start_date, data.end_date, data.status, data.customer_id, data.consultant_id, data.description, newVersion, req.params.id]);
     var updated = queryOne('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
     runSql('INSERT INTO contract_versions (id, contract_id, version, data, changed_by, change_summary) VALUES (?,?,?,?,?,?)',
-      [uuidv4(), req.params.id, newVersion, JSON.stringify(updated), req.user.id, 'Reverted to version ' + req.params.version]);
-    res.json({ message: 'Reverted to version ' + req.params.version, version: newVersion });
+      [uuidv4(), req.params.id, newVersion, JSON.stringify(updated), req.user.id, '回退到版本 ' + req.params.version]);
+    res.json({ message: '已回退到版本 ' + req.params.version, version: newVersion });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -20,14 +20,14 @@ router.post('/', authenticate, authorize('Admin'), function(req, res) {
 router.put('/:id', authenticate, authorize('Admin'), function(req, res) {
   try {
     runSql('UPDATE departments SET name=?, description=?, parent_id=?, updated_at=datetime("now") WHERE id=?', [req.body.name, req.body.description, req.body.parent_id || null, req.params.id]);
-    res.json({ message: 'Department updated' });
+    res.json({ message: '部门已更新' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/:id', authenticate, authorize('Admin'), function(req, res) {
   try {
     runSql('DELETE FROM departments WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Department deleted' });
+    res.json({ message: '部门已删除' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

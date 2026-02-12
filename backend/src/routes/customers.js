@@ -34,7 +34,7 @@ router.get('/options', authenticate, function(req, res) {
 
 router.get('/:id', authenticate, function(req, res) {
   var customer = queryOne('SELECT c.*, u.name as created_by_name FROM customers c LEFT JOIN users u ON c.created_by = u.id WHERE c.id = ?', [req.params.id]);
-  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  if (!customer) return res.status(404).json({ error: '客户不存在' });
   var contacts = queryAll('SELECT cc.*, u.name as created_by_name FROM customer_contacts cc LEFT JOIN users u ON cc.created_by = u.id WHERE cc.customer_id = ? ORDER BY cc.created_at DESC', [req.params.id]);
   var contracts = queryAll('SELECT ct.id, ct.contract_number, ct.name, ct.value, ct.status, ct.start_date, ct.end_date FROM contracts ct WHERE ct.customer_id = ? ORDER BY ct.created_at DESC', [req.params.id]);
   customer.contacts = contacts;
@@ -48,7 +48,7 @@ router.post('/', authenticate, authorize('Admin', 'Manager', 'Consultant'), func
     var b = req.body;
     runSql('INSERT INTO customers (id, name, email, phone, company, address, region, industry, status, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       [id, b.name, b.email || null, b.phone || null, b.company || null, b.address || null, b.region || null, b.industry || null, b.status || 'active', b.notes || null, req.user.id]);
-    logActivity(req.user.id, 'create_customer', 'customer', id, 'Created customer ' + b.name, req.ip);
+    logActivity(req.user.id, 'create_customer', 'customer', id, '创建客户 ' + b.name, req.ip);
     res.status(201).json({ id: id, name: b.name });
   } catch (err) { 
     console.error('Create customer error:', err);
@@ -61,16 +61,16 @@ router.put('/:id', authenticate, authorize('Admin', 'Manager', 'Consultant'), fu
     var b = req.body;
     runSql('UPDATE customers SET name=?,email=?,phone=?,company=?,address=?,region=?,industry=?,status=?,notes=?,updated_at=datetime("now") WHERE id=?',
       [b.name, b.email, b.phone, b.company, b.address, b.region, b.industry, b.status, b.notes, req.params.id]);
-    logActivity(req.user.id, 'update_customer', 'customer', req.params.id, 'Updated customer', req.ip);
-    res.json({ message: 'Customer updated' });
+    logActivity(req.user.id, 'update_customer', 'customer', req.params.id, '更新客户', req.ip);
+    res.json({ message: '客户已更新' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/:id', authenticate, authorize('Admin', 'Manager'), function(req, res) {
   try {
     runSql('UPDATE customers SET status = "archived", updated_at = datetime("now") WHERE id = ?', [req.params.id]);
-    logActivity(req.user.id, 'archive_customer', 'customer', req.params.id, 'Customer archived', req.ip);
-    res.json({ message: 'Customer archived' });
+    logActivity(req.user.id, 'archive_customer', 'customer', req.params.id, '归档客户', req.ip);
+    res.json({ message: '客户已归档' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -86,8 +86,8 @@ router.post('/bulk-status', authenticate, authorize('Admin', 'Manager'), functio
   try {
     var ids = req.body.ids, status = req.body.status;
     ids.forEach(function(id) { runSql('UPDATE customers SET status = ?, updated_at = datetime("now") WHERE id = ?', [status, id]); });
-    logActivity(req.user.id, 'bulk_update_customer', 'customer', null, 'Bulk status update to ' + status + ': ' + ids.length + ' records', req.ip);
-    res.json({ message: ids.length + ' customers updated' });
+    logActivity(req.user.id, 'bulk_update_customer', 'customer', null, '批量更新状态为 ' + status + '：' + ids.length + ' 条记录', req.ip);
+    res.json({ message: '已更新 ' + ids.length + ' 个客户' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -95,7 +95,7 @@ router.post('/bulk-delete', authenticate, authorize('Admin'), function(req, res)
   try {
     var ids = req.body.ids;
     ids.forEach(function(id) { runSql('UPDATE customers SET status = "archived", updated_at = datetime("now") WHERE id = ?', [id]); });
-    res.json({ message: ids.length + ' customers archived' });
+    res.json({ message: '已归档 ' + ids.length + ' 个客户' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
