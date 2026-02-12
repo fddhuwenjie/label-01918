@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { queryAll, queryOne, runSql } = require('../db');
+const { queryAll, queryOne, runSql, getBeijingTime } = require('../db');
 const { authenticate, authorize, logActivity } = require('../middleware/auth');
 
 const router = express.Router();

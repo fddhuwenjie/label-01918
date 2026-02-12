@@ -7,6 +7,15 @@ const { v4: uuidv4 } = require('uuid');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'database.sqlite');
 let db = null;
 
+// 获取北京时间字符串 (UTC+8)
+function getBeijingTime() {
+  const now = new Date();
+  const beijingOffset = 8 * 60; // UTC+8 in minutes
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const beijingTime = new Date(utcTime + (beijingOffset * 60000));
+  return beijingTime.toISOString().replace('T', ' ').substring(0, 19);
+}
+
 function getDB() {
   return db;
 }
@@ -112,6 +121,10 @@ function queryOne(sql, params) {
 }
 
 function runSql(sql, params) {
+  // 将 datetime("now") 替换为北京时间
+  var beijingTime = getBeijingTime();
+  sql = sql.replace(/datetime\("now"\)/g, '"' + beijingTime + '"');
+  
   if (params && params.length) {
     db.run(sql, params);
   } else {
@@ -212,4 +225,4 @@ function seedData() {
   saveDB();
 }
 
-module.exports = { getDB, initDB, seedData, queryAll, queryOne, runSql, saveDB };
+module.exports = { getDB, initDB, seedData, queryAll, queryOne, runSql, saveDB, getBeijingTime };

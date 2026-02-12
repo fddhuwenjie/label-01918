@@ -135,7 +135,7 @@ export default function Contracts() {
                 <Select placeholder="批量改状态" style={{ width: 140 }} onChange={handleBulkStatus} options={statusOptions} />
               )}
               <Button icon={<ExportOutlined />} onClick={handleExport}>导出CSV</Button>
-              {hasPermission('contracts', 'write') && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditRecord(null); form.resetFields(); setModalOpen(true); }}>新建合同</Button>}
+              {hasPermission('contracts', 'write') && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditRecord(null); form.resetFields(); form.setFieldsValue({ status: 'draft' }); setModalOpen(true); }}>新建合同</Button>}
             </Space>
           </Col>
         </Row>
@@ -148,13 +148,18 @@ export default function Contracts() {
 
       <Modal title={editRecord ? '编辑合同' : '新建合同'} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()} width={640} destroyOnClose okText="保存" cancelText="取消">
         <Form form={form} layout="vertical" onFinish={handleSave}>
+          {!editRecord && (
+            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 4 }}>
+              <Typography.Text type="secondary">新建合同将保存为草稿状态，保存后可在列表中点击"提审"按钮提交审批</Typography.Text>
+            </div>
+          )}
           <Row gutter={16}>
             <Col span={12}><Form.Item name="contract_number" label="合同编号" rules={[{ required: true, message: '请输入合同编号' }]}><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="name" label="合同名称" rules={[{ required: true, message: '请输入合同名称' }]}><Input /></Form.Item></Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="value" label="金额"><InputNumber style={{ width: '100%' }} min={0} precision={2} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="状态"><Select options={getAllowedStatusOptions(editRecord?.status)} /></Form.Item></Col>
+            {editRecord && <Col span={12}><Form.Item name="status" label="状态"><Select options={getAllowedStatusOptions(editRecord?.status)} /></Form.Item></Col>}
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="start_date" label="开始日期"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
