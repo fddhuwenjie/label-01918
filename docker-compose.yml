@@ -7,7 +7,7 @@ services:
       - "3002:3000"
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=contract-mgmt-secret-key-2026
+      - JWT_SECRET=${JWT_SECRET:-contract-mgmt-secret-2026-default}
       - DB_PATH=/app/data/database.sqlite
     volumes:
       - backend-data:/app/data

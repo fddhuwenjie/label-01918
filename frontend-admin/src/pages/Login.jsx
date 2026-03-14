@@ -44,8 +44,7 @@ export default function Login() {
         </Form>
         <div style={{ textAlign: 'center' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            管理员: admin@example.com / admin123<br />
-            经理: manager@example.com / user123
+            如需帮助，请联系系统管理员
           </Text>
         </div>
       </Card>

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const { queryOne, runSql } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'contract-mgmt-secret-key-2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'contract-mgmt-secret-2026-default';
 
 function authenticate(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');

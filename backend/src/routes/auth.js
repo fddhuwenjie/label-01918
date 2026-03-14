@@ -3,10 +3,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { queryOne, runSql } = require('../db');
 const { authenticate, logActivity, JWT_SECRET } = require('../middleware/auth');
+const { loginLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
-router.post('/login', function(req, res) {
+router.post('/login', loginLimiter, function(req, res) {
   try {
     var email = req.body.email;
     var password = req.body.password;

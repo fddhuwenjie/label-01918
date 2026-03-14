@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { queryAll, queryOne, runSql } = require('../db');
 const { authenticate, authorize, logActivity } = require('../middleware/auth');
+const { passwordResetLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -58,7 +59,10 @@ router.post('/', authenticate, authorize('Admin'), function(req, res) {
     if (existing) {
       return res.status(400).json({ error: '该邮箱已被使用' });
     }
-    var hashed = bcrypt.hashSync(req.body.password || 'default123', 10);
+    if (!req.body.password) {
+      return res.status(400).json({ error: '请提供密码' });
+    }
+    var hashed = bcrypt.hashSync(req.body.password, 10);
     runSql('INSERT INTO users (id, email, password, name, phone, role_id, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, req.body.email, hashed, req.body.name, req.body.phone || null, req.body.role_id, req.body.department_id || null, req.body.status || 'active']);
     logActivity(req.user.id, 'create_user', 'user', id, '创建用户 ' + req.body.email, req.ip);
     res.status(201).json({ id: id, email: req.body.email, name: req.body.name });
@@ -77,9 +81,12 @@ router.put('/:id', authenticate, authorize('Admin', 'Manager'), function(req, re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/:id/reset-password', authenticate, authorize('Admin'), function(req, res) {
+router.put('/:id/reset-password', authenticate, authorize('Admin'), passwordResetLimiter, function(req, res) {
   try {
-    runSql('UPDATE users SET password = ?, updated_at = datetime("now") WHERE id = ?', [bcrypt.hashSync(req.body.newPassword || 'default123', 10), req.params.id]);
+    if (!req.body.newPassword) {
+      return res.status(400).json({ error: '请提供新密码' });
+    }
+    runSql('UPDATE users SET password = ?, updated_at = datetime("now") WHERE id = ?', [bcrypt.hashSync(req.body.newPassword, 10), req.params.id]);
     logActivity(req.user.id, 'reset_password', 'user', req.params.id, '管理员重置密码', req.ip);
     res.json({ message: '密码已重置' });
   } catch (err) { res.status(500).json({ error: err.message }); }

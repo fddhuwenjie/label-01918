@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const { initDB, seedData } = require('./db');
+const { apiLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// 全局 API 速率限制
+app.use('/api', apiLimiter);
 
 // Health check (available before DB init)
 app.get('/api/health', function(req, res) {
