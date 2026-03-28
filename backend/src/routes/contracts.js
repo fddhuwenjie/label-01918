@@ -204,8 +204,9 @@ router.post('/:id/submit-approval', authenticate, authorize('Admin', 'Manager', 
     }
 
     // 审批规则：
-    // 1. 合同金额 >= 5万：必须由 Admin 审批
-    // 2. 合同金额 < 5万：由 Manager 审批，但如果提交人是 Manager，则需要 Admin 审批（避免自己审批自己）
+    // 1. 管理员提交的合同：自动通过（已在上文处理）
+    // 2. 合同金额 >= 5万：必须由 Admin 审批
+    // 3. 合同金额 < 5万：由 Manager 审批，但如果提交人是 Manager，则需要 Admin 审批（避免自己审批自己）
     var approverRole;
     if (contract.value >= 50000) {
       approverRole = 'Admin';
@@ -247,6 +248,27 @@ router.post('/:id/approvals', authenticate, authorize('Admin', 'Manager'), funct
 
     if (!approvalId) {
       // 兼容旧逻辑：没有 approval_id 时直接创建一条
+      // 先进行权限和规则检查
+      var contract = queryOne('SELECT created_by, value, status FROM contracts WHERE id = ?', [req.params.id]);
+      
+      if (!contract) return res.status(404).json({ error: '合同不存在' });
+      if (contract.status !== 'pending') return res.status(400).json({ error: '合同不在待审批状态' });
+      
+      // 检查是否是审批人自己提交的合同（自审）
+      if (req.user.id === contract.created_by) {
+        return res.status(403).json({ error: '您不能审批自己提交的合同' });
+      }
+      
+      // 检查金额审批规则：>=5万的合同只能由管理员审批
+      if (contract.value >= 50000 && req.user.role_name !== 'Admin') {
+        return res.status(403).json({ error: '金额≥5万的合同只能由管理员审批' });
+      }
+      
+      // 检查金额审批规则：<5万的合同只能由经理审批（管理员也可以审批）
+      if (contract.value < 50000 && req.user.role_name !== 'Admin' && req.user.role_name !== 'Manager') {
+        return res.status(403).json({ error: '金额<5万的合同只能由经理审批' });
+      }
+      
       var newId = uuidv4();
       runSql('INSERT INTO contract_approvals (id, contract_id, approver_id, status, comments, step, step_name, created_at, updated_at) VALUES (?,?,?,?,?,?,?,datetime("now"),datetime("now"))',
         [newId, req.params.id, req.user.id, status, comments, 1, '审批']);
@@ -263,6 +285,25 @@ router.post('/:id/approvals', authenticate, authorize('Admin', 'Manager'), funct
     // 有 approval_id：更新对应审批记录
     var approval = queryOne('SELECT * FROM contract_approvals WHERE id = ?', [approvalId]);
     if (!approval) return res.status(404).json({ error: '审批记录不存在' });
+    
+    // 获取合同信息以检查自审和金额审批规则
+    var contract = queryOne('SELECT created_by, value FROM contracts WHERE id = ?', [approval.contract_id]);
+    
+    // 检查是否是审批人自己提交的合同（自审）
+    if (req.user.id === contract.created_by) {
+      return res.status(403).json({ error: '您不能审批自己提交的合同' });
+    }
+    
+    // 检查金额审批规则：>=5万的合同只能由管理员审批
+    if (contract.value >= 50000 && req.user.role_name !== 'Admin') {
+      return res.status(403).json({ error: '金额≥5万的合同只能由管理员审批' });
+    }
+    
+    // 检查金额审批规则：<5万的合同只能由经理审批（管理员也可以审批）
+    if (contract.value < 50000 && req.user.role_name !== 'Admin' && req.user.role_name !== 'Manager') {
+      return res.status(403).json({ error: '金额<5万的合同只能由经理审批' });
+    }
+    
     if (approval.approver_id !== req.user.id && req.user.role_name !== 'Admin') {
       return res.status(403).json({ error: '您不是该审批的审批人' });
     }

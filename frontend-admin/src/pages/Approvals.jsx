@@ -69,11 +69,22 @@ export default function Approvals() {
     { title: '审批环节', dataIndex: 'step_name', width: 90, ellipsis: true },
     { title: '提交时间', dataIndex: 'submitted_at', width: 155, ellipsis: true },
     { title: '操作', width: 190, fixed: 'right', render: function(_, r) {
+      // 检查是否有权审批：
+      // 1. 管理员可以审批所有
+      // 2. 经理可以审批<5万的合同，但不能审批自己提交的
+      // 3. 顾问不能审批
+      const canApprove = user?.role_name === 'Admin' || 
+        (user?.role_name === 'Manager' && r.value < 50000 && r.created_by_name !== user?.name);
+      
       return (
         <Space>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate('/contracts/' + r.contract_id)}>查看</Button>
-          <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'approved' }); setComments(''); }}>通过</Button>
-          <Button danger size="small" icon={<CloseOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'rejected' }); setComments(''); }}>拒绝</Button>
+          {canApprove && (
+            <>
+              <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'approved' }); setComments(''); }}>通过</Button>
+              <Button danger size="small" icon={<CloseOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'rejected' }); setComments(''); }}>拒绝</Button>
+            </>
+          )}
         </Space>
       );
     }},
