@@ -206,18 +206,21 @@ router.post('/:id/submit-approval', authenticate, authorize('Admin', 'Manager', 
     // 审批规则：
     // 1. 合同金额 >= 5万：必须由 Admin 审批
     // 2. 合同金额 < 5万：由 Manager 审批，但如果提交人是 Manager，则需要 Admin 审批（避免自己审批自己）
+    // 3. 顾问提交的合同严格按照金额分配审批人
     var approverRole;
-    if (contract.value >= 50000) {
-      approverRole = 'Admin';
-    } else if (req.user.role_name === 'Manager') {
+    if (req.user.role_name === 'Manager') {
       // 经理提交的合同，无论金额大小，都需要管理员审批
       approverRole = 'Admin';
+    } else if (req.user.role_name === 'Consultant') {
+      // 顾问提交的合同，根据金额分配审批人
+      approverRole = contract.value >= 50000 ? 'Admin' : 'Manager';
     } else {
-      approverRole = 'Manager';
+      // 其他情况（理论上不会到这里，因为 Admin 已经自动通过了）
+      approverRole = 'Admin';
     }
 
-    // 找到审批人（按角色）
-    var approvers = queryAll("SELECT u.id, u.name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE r.name = ? AND u.status = 'active'", [approverRole]);
+    // 找到审批人（按角色），排除提交人自己
+    var approvers = queryAll("SELECT u.id, u.name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE r.name = ? AND u.status = 'active' AND u.id != ?", [approverRole, req.user.id]);
     if (!approvers.length) {
       // 没有对应角色的审批人，回退
       runSql('UPDATE contracts SET status = "draft", updated_at = datetime("now") WHERE id = ?', [req.params.id]);
@@ -247,6 +250,17 @@ router.post('/:id/approvals', authenticate, authorize('Admin', 'Manager'), funct
 
     if (!approvalId) {
       // 兼容旧逻辑：没有 approval_id 时直接创建一条
+      // 检查：经理不能审批自己提交的合同
+      var contractForCheck = queryOne('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
+      if (req.user.role_name === 'Manager' && contractForCheck.created_by === req.user.id) {
+        return res.status(403).json({ error: '经理不能审批自己提交的合同' });
+      }
+      
+      // 金额校验：经理只能审批<5万的合同
+      if (req.user.role_name === 'Manager' && contractForCheck.value >= 50000) {
+        return res.status(403).json({ error: '经理只能审批金额小于5万的合同' });
+      }
+      
       var newId = uuidv4();
       runSql('INSERT INTO contract_approvals (id, contract_id, approver_id, status, comments, step, step_name, created_at, updated_at) VALUES (?,?,?,?,?,?,?,datetime("now"),datetime("now"))',
         [newId, req.params.id, req.user.id, status, comments, 1, '审批']);
@@ -267,6 +281,17 @@ router.post('/:id/approvals', authenticate, authorize('Admin', 'Manager'), funct
       return res.status(403).json({ error: '您不是该审批的审批人' });
     }
     if (approval.status !== 'pending') return res.status(400).json({ error: '该审批已处理' });
+    
+    // 检查：经理不能审批自己提交的合同
+    var contract = queryOne('SELECT * FROM contracts WHERE id = ?', [approval.contract_id]);
+    if (req.user.role_name === 'Manager' && contract.created_by === req.user.id) {
+      return res.status(403).json({ error: '经理不能审批自己提交的合同' });
+    }
+    
+    // 金额校验：经理只能审批<5万的合同
+    if (req.user.role_name === 'Manager' && contract.value >= 50000) {
+      return res.status(403).json({ error: '经理只能审批金额小于5万的合同' });
+    }
 
     // 更新审批记录
     runSql('UPDATE contract_approvals SET status = ?, comments = ?, updated_at = datetime("now") WHERE id = ?',

@@ -69,11 +69,16 @@ export default function Approvals() {
     { title: '审批环节', dataIndex: 'step_name', width: 90, ellipsis: true },
     { title: '提交时间', dataIndex: 'submitted_at', width: 155, ellipsis: true },
     { title: '操作', width: 190, fixed: 'right', render: function(_, r) {
+      const canApprove = user?.role_name === 'Admin' || (user?.role_name === 'Manager' && r.value < 50000);
       return (
         <Space>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate('/contracts/' + r.contract_id)}>查看</Button>
-          <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'approved' }); setComments(''); }}>通过</Button>
-          <Button danger size="small" icon={<CloseOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'rejected' }); setComments(''); }}>拒绝</Button>
+          {canApprove && (
+            <>
+              <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'approved' }); setComments(''); }}>通过</Button>
+              <Button danger size="small" icon={<CloseOutlined />} onClick={() => { setApprovalModal({ record: r, action: 'rejected' }); setComments(''); }}>拒绝</Button>
+            </>
+          )}
         </Space>
       );
     }},
